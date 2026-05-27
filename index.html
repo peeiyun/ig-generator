@@ -275,4 +275,170 @@
   <div class="card">
     <div class="card-title">🔑 Gemini API Key</div>
     <input type="password" id="api-key" placeholder="AIza..." />
-    <p class="api-notice">Key 只存在瀏覽器本機，不會上傳。沒有 Key 請至 <a href="https://aist
+    <p class="api-notice">Key 只存在瀏覽器本機，不會上傳。沒有 Key 請至 <a href="https://aistudio.google.com" target="_blank">aistudio.google.com</a> 免費申請。</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">📍 店家基本資料</div>
+    <div class="grid-3">
+      <div>
+        <label>地點</label>
+        <input type="text" id="location" placeholder="ex: 屏東、高雄" />
+      </div>
+      <div>
+        <label>店名</label>
+        <input type="text" id="shopname" placeholder="ex: 焦個朋友" />
+      </div>
+      <div>
+        <label>副標題</label>
+        <input type="text" id="subtitle" placeholder="ex: 花生豆腐蔬食店" />
+      </div>
+    </div>
+    <label>開頭介紹（位置、特色、適合誰）</label>
+    <textarea id="intro" rows="2" placeholder="ex: 位於潮州車站附近的蔬食店，以花生豆腐為主題，價格超平價..."></textarea>
+
+    <div style="margin-top:12px;">
+      <label style="margin-bottom:8px;">葷素屬性</label>
+      <div class="tag-row" id="veg-tags">
+        <span class="tag" data-val="">不標注</span>
+        <span class="tag selected" data-val="純素">純素</span>
+        <span class="tag" data-val="蛋奶素">蛋奶素</span>
+        <span class="tag" data-val="葷素共食">葷素共食</span>
+        <span class="tag" data-val="葷食">葷食</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🍽️ 料理</div>
+    <div id="dishes-container"></div>
+    <button class="add-dish-btn" onclick="addDish()">＋ 新增料理</button>
+  </div>
+
+  <div class="card">
+    <div class="card-title">🏠 店家資訊</div>
+    <label>地址</label>
+    <input type="text" id="address" placeholder="ex: 屏東縣潮州鎮五福路19號" />
+    <div class="grid-2" style="margin-top:10px;">
+      <div>
+        <label>電話（選填）</label>
+        <input type="text" id="phone" placeholder="ex: 08-7880000" />
+      </div>
+      <div>
+        <label>營業時間（選填）</label>
+        <input type="text" id="hours" placeholder="ex: 11:00-21:00，週一公休" />
+      </div>
+    </div>
+    <label>其他補充</label>
+    <textarea id="extra" rows="2" placeholder="ex: 捷運可到、需預約、停車方便..."></textarea>
+  </div>
+
+  <button class="gen-btn" id="gen-btn" onclick="generate()">✨ 產生文案</button>
+
+  <div class="output-card" id="output-card">
+    <div class="output-header">
+      <span class="output-label">📱 產生的貼文</span>
+      <button class="copy-btn" onclick="copyText()">📋 複製</button>
+    </div>
+    <div id="output-content"></div>
+  </div>
+
+</div>
+
+<script>
+let dishCount = 0;
+let selectedVeg = '純素';
+
+document.addEventListener("DOMContentLoaded", () => {
+  const savedKey = localStorage.getItem("gemini_api_key");
+  if (savedKey) {
+    document.getElementById("api-key").value = savedKey;
+  }
+});
+
+document.querySelectorAll('#veg-tags .tag').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('#veg-tags .tag').forEach(x => x.classList.remove('selected'));
+    t.classList.add('selected');
+    selectedVeg = t.dataset.val;
+  });
+});
+
+function addDish() {
+  dishCount++;
+  const id = dishCount;
+  const container = document.getElementById('dishes-container');
+  const block = document.createElement('div');
+  block.className = 'dish-block';
+  block.id = 'dish-' + id;
+  block.innerHTML = `
+    <div class="dish-header">
+      <span class="dish-label">料理 ${id}</span>
+      <button class="remove-btn" onclick="removeDish(${id})" aria-label="移除">&times;</button>
+    </div>
+    <div class="grid-3">
+      <input type="text" placeholder="料理名稱" id="dish-name-${id}" />
+      <input type="number" placeholder="價格 $" id="dish-price-${id}" min="0" />
+      <input type="text" placeholder="加購 / 套餐" id="dish-add-${id}" />
+    </div>
+    <textarea rows="2" placeholder="口感、特色心得..." id="dish-note-${id}" style="width:100%; margin-top:8px;"></textarea>
+  `;
+  container.appendChild(block);
+}
+
+function removeDish(id) {
+  const el = document.getElementById('dish-' + id);
+  if (el) el.remove();
+}
+
+function getDishes() {
+  const results = [];
+  document.querySelectorAll('[id^="dish-name-"]').forEach(el => {
+    const id = el.id.replace('dish-name-', '');
+    const name = el.value.trim();
+    if (!name) return;
+    const price = document.getElementById('dish-price-' + id)?.value.trim();
+    const add = document.getElementById('dish-add-' + id)?.value.trim();
+    const note = document.getElementById('dish-note-' + id)?.value.trim();
+    results.push({ name, price, add, note });
+  });
+  return results;
+}
+
+async function generate() {
+  const apiKey = document.getElementById('api-key').value.trim();
+  const location = document.getElementById('location').value.trim();
+  const shopname = document.getElementById('shopname').value.trim();
+  const subtitle = document.getElementById('subtitle').value.trim();
+  const intro = document.getElementById('intro').value.trim();
+  const address = document.getElementById('address').value.trim();
+  const phone = document.getElementById('phone').value.trim();
+  const hours = document.getElementById('hours').value.trim();
+  const extra = document.getElementById('extra').value.trim();
+  const dishes = getDishes();
+
+  if (!apiKey) { alert('請填入 Gemini API Key！'); return; }
+  if (!shopname) { alert('請填寫店名！'); return; }
+
+  localStorage.setItem("gemini_api_key", apiKey);
+
+  const btn = document.getElementById('gen-btn');
+  const outputCard = document.getElementById('output-card');
+  const outputContent = document.getElementById('output-content');
+
+  btn.disabled = true;
+  btn.textContent = '生成中...';
+  outputCard.style.display = 'block';
+  outputContent.innerHTML = '<div class="loading"><span>✦</span><span class="dot-anim">文案生成中</span></div>';
+
+  // 改用安全不截斷的換行法
+  const NL = String.fromCharCode(10);
+  const dishLines = dishes.map((d, i) => {
+    let line = "料理" + (i+1) + "：" + d.name;
+    if (d.price) line += "，$" + d.price;
+    if (d.add) line += "，加購/套餐：" + d.add;
+    if (d.note) line += NL + "心得：" + d.note;
+    return line;
+  }).join(NL);
+
+  const infoLines =
